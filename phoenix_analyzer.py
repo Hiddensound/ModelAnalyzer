@@ -236,14 +236,18 @@ class EfficiencyAnalyzer:
     def _analyze_single_group(self, group_num: int, start_time: Any, spans: List) -> None:
         """Analyze a single group of spans"""
         print(f"\n🔍 Analyzing Group #{group_num} (Start Time: {start_time})")
+        print(f"📊 Total spans received for analysis: {len(spans)}")
         
         # Prepare analysis data
         analysis_data = []
         for call_num, (original_idx, span) in enumerate(spans, 1):
             span_details = SpanAnalyzer.extract_span_details(span)
             
+            # Generate variant letter (A, B, C, D, E, etc. for unlimited variants)
+            variant_letter = chr(64 + call_num)  # A=65, B=66, C=67...
+            
             variant_data = {
-                "variant": f"Variant {chr(64 + call_num)}",
+                "variant": f"Variant {variant_letter}",
                 "model": span_details.model,
                 "prompt_tokens": span_details.prompt_tokens,
                 "completion_tokens": span_details.completion_tokens,
@@ -253,21 +257,27 @@ class EfficiencyAnalyzer:
                 "output_preview": str(span_details.output_data)[:200] if span_details.output_data != 'N/A' else 'N/A'
             }
             analysis_data.append(variant_data)
+            print(f"   ✅ Processing {variant_letter}: {span_details.model} ({span_details.total_tokens} tokens)")
+        
+        print(f"📋 Prepared {len(analysis_data)} variants for OpenAI analysis")
         
         # Create analysis prompt
         prompt = f"""
-I ran the same prompt across multiple OpenAI models simultaneously and tracked performance. Analyze efficiency in terms of cost vs quality.
+I ran the same prompt across {len(analysis_data)} different OpenAI models simultaneously and tracked their performance. Analyze efficiency in terms of cost vs quality.
 
 Performance Data:
 {json.dumps(analysis_data, indent=2)}
 
-Provide:
-1. Comparison table (Variant, Model, Token Usage, Time)
-2. Key observations about token efficiency in 2-3 lines
-3. Recommendations for best cost/performance ratio in 2-3 lines
-4. Provide a conclusion on which model is the most efficient for this prompt based on the data provided.
+Please provide:
+1. A comparison table showing ALL {len(analysis_data)} variants (Variant, Model, Token Usage, Time)
+2. Key observations about token efficiency across ALL {len(analysis_data)} variants
+3. Recommendations for which model offers the best cost/performance ratio
+4. Any patterns you notice in the token usage differences between ALL variants
+5. Provide a conclusion on which model is the most efficient for this prompt based on ALL {len(analysis_data)} variants provided.
 
-Format with clear headers and bullet points.
+IMPORTANT: Make sure to analyze ALL {len(analysis_data)} variants provided. Do not skip any variants.
+
+Format your response clearly with headers and bullet points.
 """
         
         try:
@@ -276,14 +286,14 @@ Format with clear headers and bullet points.
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are an expert AI model performance analyst. Provide actionable insights about model efficiency and cost optimization."},
+                    {"role": "system", "content": f"You are an expert AI model performance analyst. Analyze ALL {len(analysis_data)} provided variants and give actionable insights about model efficiency and cost optimization. Do not skip any variants - analyze every single one provided."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=1000,
+                max_tokens=1500,  # Increased for comprehensive analysis
                 temperature=0.3
             )
             
-            print(f"\n📊 OPENAI ANALYSIS FOR GROUP #{group_num}:")
+            print(f"\n📊 OPENAI ANALYSIS FOR GROUP #{group_num} ({len(analysis_data)} variants):")
             print(f"{'─' * 80}")
             print(response.choices[0].message.content)
             print(f"{'─' * 80}")
